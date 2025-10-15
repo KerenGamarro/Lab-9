@@ -1,0 +1,191 @@
+/* USER CODE BEGIN Header Keren Gamarro 23546 Lector de tarjeta SD */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2025 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "fatfs.h" //para que pueda leer los archivos fat
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include "fatfs_sd.h"
+#include "string.h"
+#include "stdio.h"
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+SPI_HandleTypeDef hspi1;
+FATFS fs;
+FATFS *pfs;
+FIL fil;
+FRESULT fres;
+DWORD fre_clust;
+uint32_t totalSpace, freeSpace;
+char buffer[100];
+char rx_data; //para que pueda transmitir al arduino
+
+
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+SPI_HandleTypeDef hspi1;
+
+UART_HandleTypeDef huart2;
+
+/* USER CODE BEGIN PV */
+const char* nombres[] = {"imagen 1.txt", "imagen 2.txt", "imagen 3.txt"};
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_USART2_UART_Init(void);
+static void MX_SPI1_Init(void);
+
+
+/* USER CODE BEGIN PFP */
+void transmit_uart (char*string);
+void listado(void); //funcion del menu
+void leer(char *nombre); //funcion para que lea los archivos y compare por nombre
+
+
+
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+void transmit_uart (char*string){ //empieza a transmitir al arduino
+	uint8_t len = strlen(string);
+	HAL_UART_Transmit(&huart2, (uint8_t*) string,len,200);
+}
+
+void listado(void){ //la funcion listado manda el menu
+
+	transmit_uart("Listado\r\n");
+
+	transmit_uart("1. Fantasma\r\n");
+	transmit_uart("2. Corazon\r\n");
+	transmit_uart("3. Dado\r\n");
+	transmit_uart("Seleccione que quiere ver: ");
+}
+
+
+void leer(char *nombre){ //luego la opcion leer manda otro texto y analiza si hay archivos para leer, si no hay manda un mensaje, si hay pero no abre es otro
+	char linea[100];
+
+	fres = f_open(&fil, nombre, FA_READ);
+	if (fres == FR_OK){
+		sprintf(buffer, "\r\nPreparese para sorprenderse %s\r\n", nombre);
+		transmit_uart(buffer);
+
+		while (f_gets(linea, sizeof(linea), &fil)){
+			transmit_uart(linea);
+		}
+
+		f_close(&fil);
+		transmit_uart("\r\nNo hay mas feliz dia \r\n");
+	}
+	else {
+		sprintf(buffer, "No se pudo, revise su archivo %s\r\n", nombre);
+		transmit_uart(buffer);
+	}
+}
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_SPI1_Init();
+  MX_USART2_UART_Init();
+  MX_FATFS_Init();
+  /* USER CODE BEGIN 2 */
+  HAL_Delay(500);
+    transmit_uart("\r\n[BOOT] Iniciando SD...\r\n"); //manda otro mensaje
+
+    /* Montaje del sistema de archivos */
+    fres = f_mount(&fs, "/", 0); //esta parte sacada del ejemplo de pablo
+    if (fres == FR_OK)
+  	  transmit_uart("MicroSD insertada correctamente!\r\n");
+    else
+  	  transmit_uart("Error al insertar MicroSD!\r\n");
+
+    listado();
+
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+	  HAL_UART_Receive(&huart2, (uint8_t*)&rx_data, 1, HAL_MAX_DELAY);//esperamos que se mande la opcion, si todo sale bien entra a analizar que archivo queremos
+
+	  if (rx_data >= '1' && rx_data <= '3') {
+	      leer(nombres[rx_data - '1']);
+	  } else {
+	      transmit_uart("\r\nNo se pudo intente de nuevo.\r\n");
+	  }
+
+	  listado();
+    }
+
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+
+  /* USER CODE END 3 */
+}
